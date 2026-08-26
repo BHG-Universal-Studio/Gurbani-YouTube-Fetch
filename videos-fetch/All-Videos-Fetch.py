@@ -108,6 +108,7 @@ existing_ids_hukamnama = set(raw_ids_hukamnama) if isinstance(raw_ids_hukamnama,
 
 print(f"📦 Existing in Gurbani App: {len(existing_ids_gurbani)}")
 print(f"📦 Existing in Harmandir App: {len(existing_ids_harmandir)}")
+print(f"📦 Existing in Hukamnama App: {len(existing_ids_hukamnama)}")
 
 # ---------------- COUNTERS ----------------
 total_fetched = 0
@@ -118,8 +119,10 @@ total_skipped_keywords = 0
 total_skipped_duplicate_titles = 0
 total_inserted_gurbani = 0
 total_inserted_harmandir = 0
+total_inserted_hukamnama = 0
 new_ids_gurbani = []
 new_ids_harmandir = []
+new_ids_hukamnama = []
 
 # Cache for channel logos to avoid redundant scraping
 CHANNEL_LOGO_CACHE = {}
@@ -446,6 +449,8 @@ for v in candidates_for_api:
         doc_ref_hukamnama.set(base_doc_data)
         db_hukamnama.collection("Search_Collection").document("streams").set({doc_ref_hukamnama.id: base_doc_data["titleLowercase"]}, merge=True)
         existing_ids_hukamnama.add(vid)
+        new_ids_hukamnama.append(vid)
+        total_inserted_hukamnama += 1
         inserted_any = True
 
     if inserted_any:
@@ -484,8 +489,19 @@ if new_ids_harmandir:
     db_harmandir.collection("App-Setup").document("App-Setup").set({
         "kirtan_videos_fetch": random_trigger_harmandir
     }, merge=True)
-db_hukamnama.collection(COLLECTION_GURBANI).document(ALL_IDS_DOC).set({"video_id": list(existing_ids_hukamnama), "total_count": len(existing_ids_hukamnama)}, merge=True)
-db_hukamnama.collection("App-Setup").document("App-Setup").set({"kirtan_videos_fetch": random.randint(100000000, 999999999)}, merge=True)
+
+if new_ids_hukamnama:
+    print(f"💾 Updating {ALL_IDS_DOC} index for Hukamnama App...")
+    db_hukamnama.collection(COLLECTION_GURBANI).document(ALL_IDS_DOC).set({
+        "video_id": list(existing_ids_hukamnama),
+        "total_count": len(existing_ids_hukamnama)
+    }, merge=True)
+
+    random_trigger_hukamnama = random.randint(100000000, 999999999)
+    print(f"🔄 Updating kirtan_videos_fetch in Hukamnama App-Setup to: {random_trigger_hukamnama}")
+    db_hukamnama.collection("App-Setup").document("App-Setup").set({
+        "kirtan_videos_fetch": random_trigger_hukamnama
+    }, merge=True)
     # ----------------------------------------------------
 
 
@@ -499,4 +515,5 @@ print(f"🚫 Skipped (Live/Upc)       : {total_skipped_live}")
 print(f"👯 Skipped (Duplicate Title): {total_skipped_duplicate_titles}")
 print(f"➕ Inserted to Gurbani     : {total_inserted_gurbani} (Total: {len(existing_ids_gurbani)})")
 print(f"➕ Inserted to Harmandir   : {total_inserted_harmandir} (Total: {len(existing_ids_harmandir)})")
+print(f"➕ Inserted to Hukamnama   : {total_inserted_hukamnama} (Total: {len(existing_ids_hukamnama)})")
 print("========================================")

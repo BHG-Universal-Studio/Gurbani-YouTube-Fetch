@@ -217,11 +217,13 @@ existing_ids_hukamnama = set(raw_ids_hukamnama) if isinstance(raw_ids_hukamnama,
 
 print(f"📦 Existing in Gurbani App: {len(existing_ids_gurbani)}")
 print(f"📦 Existing in Harmandir App: {len(existing_ids_harmandir)}")
+print(f"📦 Existing in Hukamnama App: {len(existing_ids_hukamnama)}")
 
 # ---------------- CLEANUP STALE LIVE STREAMS ----------------
 all_existing_ids = existing_ids_gurbani.union(existing_ids_harmandir, existing_ids_hukamnama)
 total_deleted_gurbani = 0
 total_deleted_harmandir = 0
+total_deleted_hukamnama = 0
 
 if all_existing_ids:
     print(f"\n🔄 Checking {len(all_existing_ids)} previously saved live streams...")
@@ -268,6 +270,7 @@ if all_existing_ids:
                 for doc in db_hukamnama.collection(COLLECTION_NAME).where(filter=FieldFilter("url", "==", target_url)).stream():
                     db_hukamnama.collection("Search_Collection").document("streams").set({doc.id: firestore.DELETE_FIELD}, merge=True)
                     doc.reference.delete()
+                total_deleted_hukamnama += 1
 
         # Update ALL_IDS_DOC indexes
         if total_deleted_gurbani > 0:
@@ -278,7 +281,10 @@ if all_existing_ids:
             db_harmandir.collection(COLLECTION_NAME).document(ALL_IDS_DOC).set({
                 "video_id": list(existing_ids_harmandir), "total_count": len(existing_ids_harmandir)
             }, merge=True)
-        db_hukamnama.collection(COLLECTION_NAME).document(ALL_IDS_DOC).set({"video_id": list(existing_ids_hukamnama), "total_count": len(existing_ids_hukamnama)}, merge=True)
+        if total_deleted_hukamnama > 0:
+            db_hukamnama.collection(COLLECTION_NAME).document(ALL_IDS_DOC).set({
+                "video_id": list(existing_ids_hukamnama), "total_count": len(existing_ids_hukamnama)
+            }, merge=True)
     else:
         print("✅ All previously saved streams are still actively live.")
 
@@ -291,9 +297,11 @@ total_skipped_not_live = 0
 total_skipped_duplicate_titles = 0
 total_inserted_gurbani = 0
 total_inserted_harmandir = 0
+total_inserted_hukamnama = 0
 
 new_ids_gurbani = []
 new_ids_harmandir = []
+new_ids_hukamnama = []
 
 # ---------------- MAIN LOGIC PIPELINE ----------------
 
@@ -454,6 +462,8 @@ for v in live_candidates:
         doc_ref_hukamnama.set(base_doc_data)
         db_hukamnama.collection("Search_Collection").document("streams").set({doc_ref_hukamnama.id: base_doc_data["titleLowercase"]}, merge=True)
         existing_ids_hukamnama.add(vid)
+        new_ids_hukamnama.append(vid)
+        total_inserted_hukamnama += 1
         inserted_any = True
 
     if inserted_any:
@@ -474,11 +484,17 @@ if new_ids_harmandir:
         "video_id": list(existing_ids_harmandir),
         "total_count": len(existing_ids_harmandir)
     }, merge=True)
-db_hukamnama.collection(COLLECTION_NAME).document(ALL_IDS_DOC).set({"video_id": list(existing_ids_hukamnama), "total_count": len(existing_ids_hukamnama)}, merge=True)
+
+if new_ids_hukamnama:
+    print(f"💾 Updating {ALL_IDS_DOC} index for Hukamnama App...")
+    db_hukamnama.collection(COLLECTION_NAME).document(ALL_IDS_DOC).set({
+        "video_id": list(existing_ids_hukamnama),
+        "total_count": len(existing_ids_hukamnama)
+    }, merge=True)
 
 # ---------------- SUMMARY ----------------
 print("\n================ SUMMARY ================")
-print(f"🗑️  Stale Streams Deleted   : Gurbani: {total_deleted_gurbani} | Harmandir: {total_deleted_harmandir}")
+print(f"🗑️  Stale Streams Deleted   : Gurbani: {total_deleted_gurbani} | Harmandir: {total_deleted_harmandir} | Hukamnama: {total_deleted_hukamnama}")
 print(f"📥 Total RSS Fetched        : {total_fetched}")
 print(f"✂️  Skipped (No 'Live' word): {total_skipped_no_live_word}")
 print(f"⏭️  Skipped (Already in DB) : {total_skipped_existing}")
@@ -487,4 +503,5 @@ print(f"🗑️  Skipped (API: Not Live) : {total_skipped_not_live}")
 print(f"👯 Skipped (Duplicate Title): {total_skipped_duplicate_titles}")
 print(f"➕ Inserted to Gurbani     : {total_inserted_gurbani} (Total Live: {len(existing_ids_gurbani)})")
 print(f"➕ Inserted to Harmandir   : {total_inserted_harmandir} (Total Live: {len(existing_ids_harmandir)})")
+print(f"➕ Inserted to Hukamnama   : {total_inserted_hukamnama} (Total Live: {len(existing_ids_hukamnama)})")
 print("========================================")
