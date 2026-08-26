@@ -22,9 +22,10 @@ ALL_IDS_DOC = "-All_Videos_Id"
 # Env variables for BOTH service accounts & YouTube API
 SERVICE_ACCOUNT_GURBANI = os.environ.get("FIREBASE_SERVICE_ACCOUNT_GURBANI")
 SERVICE_ACCOUNT_HARMANDIR = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HARMANDIR")
+SERVICE_ACCOUNT_HUKAMNAMA = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR:
+if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR or not SERVICE_ACCOUNT_HUKAMNAMA:
     print("❌ FIREBASE_SERVICE_ACCOUNT env vars missing for one or both apps")
     sys.exit(1)
 
@@ -44,6 +45,10 @@ db_gurbani = firestore.client(app=app_gurbani)
 cred_harmandir = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HARMANDIR))
 app_harmandir = firebase_admin.initialize_app(cred_harmandir, name='harmandir_app_updater')
 db_harmandir = firestore.client(app=app_harmandir)
+
+cred_hukamnama = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HUKAMNAMA))
+app_hukamnama = firebase_admin.initialize_app(cred_hukamnama, name='hukamnama_app_updater')
+db_hukamnama = firestore.client(app=app_hukamnama)
 
 # ---------------- HELPER METHODS ----------------
 def chunk_list(data, chunk_size):
@@ -111,6 +116,7 @@ if not target_ids:
 # Counters
 total_updated_gurbani = 0
 total_updated_harmandir = 0
+total_updated_hukamnama = 0
 total_deleted_videos = 0
 
 print("\n🚀 Starting YouTube API Fetch & Firestore Updates...")
@@ -141,6 +147,11 @@ for chunk_index, id_chunk in enumerate(chunk_list(target_ids, 50)):
         for doc in harmandir_docs:
             doc.reference.update({"viewCount": new_view_count})
             total_updated_harmandir += 1
+
+        hukamnama_docs = db_hukamnama.collection(COLLECTION_GURBANI).where(filter=FieldFilter("url", "==", target_url)).stream()
+        for doc in hukamnama_docs:
+            doc.reference.update({"viewCount": new_view_count})
+            total_updated_hukamnama += 1
             
         print(f"👁️ Updated {vid} -> {new_view_count} views")
 
@@ -183,6 +194,15 @@ for chunk_index, id_chunk in enumerate(chunk_list(target_ids, 50)):
             "video_id": firestore.ArrayRemove([vid]),
             "total_count": firestore.Increment(-1)
         })
+
+        hukamnama_docs = db_hukamnama.collection(COLLECTION_GURBANI).where(filter=FieldFilter("url", "==", target_url)).stream()
+        for doc in hukamnama_docs:
+            db_hukamnama.collection("Search_Collection").document("streams").set({doc.id: firestore.DELETE_FIELD}, merge=True)
+            doc.reference.delete()
+        db_hukamnama.collection(COLLECTION_GURBANI).document(ALL_IDS_DOC).update({
+            "video_id": firestore.ArrayRemove([vid]),
+            "total_count": firestore.Increment(-1)
+        })
         
         total_deleted_videos += 1
 
@@ -191,6 +211,7 @@ for chunk_index, id_chunk in enumerate(chunk_list(target_ids, 50)):
 print("\n🔄 Updating kirtan_videos_fetch in App-Setup...")
 random_trigger_gurbani = random.randint(100000000, 999999999)
 random_trigger_harmandir = random.randint(100000000, 999999999)
+random_trigger_hukamnama = random.randint(100000000, 999999999)
 
 try:
     db_gurbani.collection("App-Setup").document("App-Setup").set({
@@ -208,6 +229,12 @@ try:
 except Exception as e:
     print(f"   ❌ Failed to update Harmandir App-Setup: {e}")
 
+try:
+    db_hukamnama.collection("App-Setup").document("App-Setup").set({"kirtan_videos_fetch": random_trigger_hukamnama}, merge=True)
+    print(f"   ✅ Hukamnama Sahi App-Setup updated (Trigger: {random_trigger_hukamnama})")
+except Exception as e:
+    print(f"   ❌ Failed to update Hukamnama Sahi App-Setup: {e}")
+
 
 
 # ---------------- SUMMARY ----------------
@@ -215,6 +242,7 @@ print("\n================ SUMMARY ================")
 print(f"🎯 Target Videos to Update : {len(target_ids)}")
 print(f"✅ Docs Updated (Gurbani)  : {total_updated_gurbani}")
 print(f"✅ Docs Updated (Harmandir): {total_updated_harmandir}")
+print(f"✅ Docs Updated (Hukamnama): {total_updated_hukamnama}")
 print(f"🗑️  Videos Deleted         : {total_deleted_videos}")
 print("========================================")
 print("🎉 View counts updated and cleanup finished successfully!")

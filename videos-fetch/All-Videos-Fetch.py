@@ -57,9 +57,10 @@ MIN_DURATION_SECONDS = 180  # ⏱️ 3 minutes
 # Env variables for BOTH service accounts
 SERVICE_ACCOUNT_GURBANI = os.environ.get("FIREBASE_SERVICE_ACCOUNT_GURBANI")
 SERVICE_ACCOUNT_HARMANDIR = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HARMANDIR")
+SERVICE_ACCOUNT_HUKAMNAMA = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR:
+if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR or not SERVICE_ACCOUNT_HUKAMNAMA:
     print("❌ FIREBASE_SERVICE_ACCOUNT env vars missing for one or both apps")
     sys.exit(1)
 
@@ -85,6 +86,10 @@ cred_harmandir = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HARMANDIR))
 app_harmandir = firebase_admin.initialize_app(cred_harmandir, name='harmandir_app')
 db_harmandir = firestore.client(app=app_harmandir)
 
+cred_hukamnama = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HUKAMNAMA))
+app_hukamnama = firebase_admin.initialize_app(cred_hukamnama, name='hukamnama_app')
+db_hukamnama = firestore.client(app=app_hukamnama)
+
 # ---------------- READ EXISTING IDS (2 READS) ----------------
 print("\n📖 Fetching existing Video IDs from both databases...")
 
@@ -97,6 +102,9 @@ existing_ids_gurbani = set(raw_ids_gurbani) if isinstance(raw_ids_gurbani, (list
 doc_harmandir = db_harmandir.collection(COLLECTION_HARMANDIR).document(ALL_IDS_DOC).get()
 raw_ids_harmandir = doc_harmandir.to_dict().get("video_id", []) if doc_harmandir.exists else []
 existing_ids_harmandir = set(raw_ids_harmandir) if isinstance(raw_ids_harmandir, (list, tuple, set)) else set()
+doc_hukamnama = db_hukamnama.collection(COLLECTION_GURBANI).document(ALL_IDS_DOC).get()
+raw_ids_hukamnama = doc_hukamnama.to_dict().get("video_id", []) if doc_hukamnama.exists else []
+existing_ids_hukamnama = set(raw_ids_hukamnama) if isinstance(raw_ids_hukamnama, (list, tuple, set)) else set()
 
 print(f"📦 Existing in Gurbani App: {len(existing_ids_gurbani)}")
 print(f"📦 Existing in Harmandir App: {len(existing_ids_harmandir)}")
@@ -296,7 +304,7 @@ for v in rss_videos:
     title = v["title"]
 
     # Filter A: Existing in DB Check
-    if vid in existing_ids_gurbani and vid in existing_ids_harmandir:
+    if vid in existing_ids_gurbani and vid in existing_ids_harmandir and vid in existing_ids_hukamnama:
         total_skipped_existing += 1
         continue
         
@@ -433,6 +441,13 @@ for v in candidates_for_api:
         total_inserted_harmandir += 1
         inserted_any = True
 
+    if vid not in existing_ids_hukamnama:
+        doc_ref_hukamnama = db_hukamnama.collection(COLLECTION_GURBANI).document()
+        doc_ref_hukamnama.set(base_doc_data)
+        db_hukamnama.collection("Search_Collection").document("streams").set({doc_ref_hukamnama.id: base_doc_data["titleLowercase"]}, merge=True)
+        existing_ids_hukamnama.add(vid)
+        inserted_any = True
+
     if inserted_any:
         print(f"➕ Inserted ({details['duration_formatted']}): {vid} - {title[:30]}...")
         time.sleep(0.03)
@@ -469,6 +484,8 @@ if new_ids_harmandir:
     db_harmandir.collection("App-Setup").document("App-Setup").set({
         "kirtan_videos_fetch": random_trigger_harmandir
     }, merge=True)
+db_hukamnama.collection(COLLECTION_GURBANI).document(ALL_IDS_DOC).set({"video_id": list(existing_ids_hukamnama), "total_count": len(existing_ids_hukamnama)}, merge=True)
+db_hukamnama.collection("App-Setup").document("App-Setup").set({"kirtan_videos_fetch": random.randint(100000000, 999999999)}, merge=True)
     # ----------------------------------------------------
 
 

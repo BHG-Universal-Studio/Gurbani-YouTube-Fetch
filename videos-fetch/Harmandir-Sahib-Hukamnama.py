@@ -21,9 +21,10 @@ FETCH_LIMIT = 40             # 🔍 Number of recent uploads to check
 
 SERVICE_ACCOUNT_GURBANI = os.environ.get("FIREBASE_SERVICE_ACCOUNT_GURBANI")
 SERVICE_ACCOUNT_HARMANDIR = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HARMANDIR")
+SERVICE_ACCOUNT_HUKAMNAMA = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR:
+if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR or not SERVICE_ACCOUNT_HUKAMNAMA:
     print("❌ FIREBASE_SERVICE_ACCOUNT env vars missing for one or both apps")
     sys.exit(1)
 
@@ -45,6 +46,10 @@ db_gurbani = firestore.client(app=app_gurbani)
 cred_harmandir = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HARMANDIR))
 app_harmandir = firebase_admin.initialize_app(cred_harmandir, name='harmandir_app')
 db_harmandir = firestore.client(app=app_harmandir)
+
+cred_hukamnama = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HUKAMNAMA))
+app_hukamnama = firebase_admin.initialize_app(cred_hukamnama, name='hukamnama_app')
+db_hukamnama = firestore.client(app=app_hukamnama)
 
 
 # ---------------- HELPERS ----------------
@@ -250,12 +255,14 @@ def process_and_update_firestore():
 
     # Create/Update document in Harmandir App
     safe_create_or_update(db_harmandir, COLLECTION_HARMANDIR, base_payload, "Harmandir App", document_id)
+    safe_create_or_update(db_hukamnama, COLLECTION_GURBANI, base_payload, "Hukamnama Sahi App", document_id)
 
     # ---------------- 3. UPDATE APP-SETUP TRIGGERS (NEWLY ADDED) ----------------
     print("\n🔄 Updating kirtan_videos_fetch in App-Setup...")
     
     random_trigger_gurbani = random.randint(100000000, 999999999)
     random_trigger_harmandir = random.randint(100000000, 999999999)
+    random_trigger_hukamnama = random.randint(100000000, 999999999)
 
     try:
         # Gurbani App Update
@@ -274,6 +281,14 @@ def process_and_update_firestore():
         print(f"   ✅ Harmandir App-Setup updated (Trigger: {random_trigger_harmandir})")
     except Exception as e:
         print(f"   ❌ Failed to update Harmandir App-Setup: {e}")
+
+    try:
+        db_hukamnama.collection("App-Setup").document("App-Setup").set({
+            "kirtan_videos_fetch": random_trigger_hukamnama
+        }, merge=True)
+        print(f"   ✅ Hukamnama Sahi App-Setup updated (Trigger: {random_trigger_hukamnama})")
+    except Exception as e:
+        print(f"   ❌ Failed to update Hukamnama Sahi App-Setup: {e}")
 
 
 if __name__ == "__main__":

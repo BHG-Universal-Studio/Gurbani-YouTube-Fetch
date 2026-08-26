@@ -6,6 +6,8 @@ on:
 jobs:
   update-videos-streams:
     runs-on: ubuntu-latest
+    env:
+      FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA }}
 
     steps:
       - name: 📥 Checkout repository
@@ -27,6 +29,7 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT_GURBANI: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_GURBANI }}
           FIREBASE_SERVICE_ACCOUNT_HARMANDIR: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HARMANDIR }}
+          FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA }}
           YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: python videos-updater/videos_updater.py
 

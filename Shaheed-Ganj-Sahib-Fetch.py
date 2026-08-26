@@ -19,9 +19,10 @@ MIN_DURATION_SECONDS = 180
 
 SERVICE_ACCOUNT_GURBANI = os.environ.get("FIREBASE_SERVICE_ACCOUNT_GURBANI")
 SERVICE_ACCOUNT_HARMANDIR = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HARMANDIR")
+SERVICE_ACCOUNT_HUKAMNAMA = os.environ.get("FIREBASE_SERVICE_ACCOUNT_HUKAMNAMA")
 YOUTUBE_API_KEY = os.environ.get("YOUTUBE_API_KEY")
 
-if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR:
+if not SERVICE_ACCOUNT_GURBANI or not SERVICE_ACCOUNT_HARMANDIR or not SERVICE_ACCOUNT_HUKAMNAMA:
     print("❌ FIREBASE_SERVICE_ACCOUNT env vars missing for one or both apps")
     sys.exit(1)
 
@@ -40,6 +41,10 @@ db_gurbani = firestore.client(app=app_gurbani)
 cred_harmandir = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HARMANDIR))
 app_harmandir = firebase_admin.initialize_app(cred_harmandir, name='harmandir_app')
 db_harmandir = firestore.client(app=app_harmandir)
+
+cred_hukamnama = credentials.Certificate(json.loads(SERVICE_ACCOUNT_HUKAMNAMA))
+app_hukamnama = firebase_admin.initialize_app(cred_hukamnama, name='hukamnama_app')
+db_hukamnama = firestore.client(app=app_hukamnama)
 
 def fetch_channel_logo(channel_id):
     """Scrapes the channel HTML for the logo"""
@@ -225,6 +230,7 @@ def update_firestore_dual(payload):
 
     do_update(db_gurbani, COLLECTION_GURBANI, "Gurbani App", payload)
     do_update(db_harmandir, COLLECTION_HARMANDIR, "Harmandir App", harmandir_payload)
+    do_update(db_hukamnama, COLLECTION_GURBANI, "Hukamnama Sahi App", payload)
 
 if __name__ == "__main__":
     sleep_time = random.randint(1, 5)
